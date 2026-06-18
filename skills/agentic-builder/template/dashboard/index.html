@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agentic Builder — Agent Swarm</title>
+<style>
+  :root{
+    /* ── dark theme (default) ── */
+    --bg:#0a0e14; --bg-grad:#0e1622; --panel:#11161f; --panel2:#0c1119; --line:#1d2633;
+    --ink:#e6edf3; --dim:#7d8694;
+    --inset:#0b1320; --inset-line:#16263b; --inset-ink:#cfe3ff;
+    --log-ink:#c4ccd6; --bar-track:#161b22;
+    --phase-bg:#0f2417; --phase-line:#1f4d33; --phase-ink:#9fe6b0;
+    --root-bg:#101a26; --root-line:#1f3550; --root-ink:#79c0ff;
+    --mode-bg:#1a1330; --mode-line:#3a2a5e; --mode-ink:#d2a8ff;
+    --schip-bg:#15232f; --schip-line:#2a4a63; --schip-ink:#7fd3ff;
+    --core-bg:#1a1030; --core-line:#3a2a5e;
+    --stall-bg:#3d1a1a; --stall-line:#f85149; --stall-ink:#ffa07a;
+    --btn-bg:#11161f;
+    /* DAG node status colors */
+    --st-done:#3fb950; --st-working:#f0c674; --st-blocked:#f85149; --st-ready:#7d8694; --st-spawning:#79c0ff;
+    --node-bg:#11161f; --node-ink:#e6edf3; --edge:#39424f;
+    /* role accent colors */
+    --interview:#f0c674; --prd:#c9a0ff; --planner:#d2a8ff; --doc-check:#79c0ff;
+    --router:#9be7ff; --wireframe:#f78fb3; --scaffold:#5fd0c0; --architect:#58a6ff; --tdd:#f85149;
+    --impl:#3fb950; --fix:#ff7b72; --review:#ffa657; --orchestrator:#bc8cff; --setup:#5fd0c0;
+  }
+  [data-theme="light"]{
+    /* ── light / day theme ── */
+    --bg:#f6f8fa; --bg-grad:#eaeef3; --panel:#ffffff; --panel2:#eef2f7; --line:#d6dde6;
+    --ink:#1a2129; --dim:#5a6472;
+    --inset:#eef4fb; --inset-line:#cfe0f2; --inset-ink:#1d4e89;
+    --log-ink:#33404d; --bar-track:#e1e7ef;
+    --phase-bg:#e3f6ea; --phase-line:#9bd6b0; --phase-ink:#1a7f43;
+    --root-bg:#e6f0fb; --root-line:#a9cdf0; --root-ink:#1b62b3;
+    --mode-bg:#f0e9fb; --mode-line:#cdb8f0; --mode-ink:#7c4ad1;
+    --schip-bg:#e4f1fb; --schip-line:#a9cee8; --schip-ink:#1c6fb0;
+    --core-bg:#efe7fb; --core-line:#cdb8f0;
+    --stall-bg:#fbe3e3; --stall-line:#e5484d; --stall-ink:#b3261e;
+    --btn-bg:#ffffff;
+    --st-done:#1a7f43; --st-working:#b5891f; --st-blocked:#d23c3c; --st-ready:#8a94a2; --st-spawning:#1b62b3;
+    --node-bg:#ffffff; --node-ink:#1a2129; --edge:#c2cbd6;
+    /* darken a few accents that are too pale on white */
+    --interview:#b5891f; --router:#1f8fc4; --scaffold:#1f9b8a; --setup:#1f9b8a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,var(--bg-grad),var(--bg));
+    color:var(--ink);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;min-height:100vh}
+  header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;
+    align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .title{font-size:16px;font-weight:700;letter-spacing:.5px}
+  .title small{color:var(--dim);font-weight:400}
+  .phase{color:var(--phase-ink);background:var(--phase-bg);border:1px solid var(--phase-line);padding:4px 12px;
+    border-radius:20px;font-size:12px}
+  #root{background:var(--root-bg);border-color:var(--root-line);color:var(--root-ink)}
+  #mode{background:var(--mode-bg);border-color:var(--mode-line);color:var(--mode-ink)}
+  .counts{display:flex;gap:14px;font-size:12px;color:var(--dim);align-items:center}
+  .counts b{color:var(--ink)}
+  #theme,.viewbtn{background:var(--btn-bg);border:1px solid var(--line);color:var(--ink);cursor:pointer;
+    font:inherit;font-size:13px;line-height:1;padding:6px 10px;border-radius:8px;transition:.2s}
+  #theme:hover,.viewbtn:hover{border-color:var(--root-line)}
+  .viewbtn.active{background:var(--root-bg);border-color:var(--root-line);color:var(--root-ink);font-weight:700}
+  .views{display:flex;gap:6px}
+  /* Plan / DAG view */
+  #plan-view{flex:1;overflow:auto;padding:18px 22px;display:none}
+  #plan-view.show{display:block}
+  #grid-view.hide{display:none}
+  .dag-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel2);padding:10px}
+  .dag-legend{display:flex;gap:14px;flex-wrap:wrap;margin:10px 2px;font-size:11px;color:var(--dim)}
+  .dag-legend span{display:flex;align-items:center;gap:6px}
+  .dag-legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  svg .node rect,svg .node polygon{transition:fill .3s,stroke .3s}
+  svg .node text{font:11px ui-monospace,Menlo,monospace;fill:var(--node-ink)}
+  svg .node .sub{font-size:9px;fill:var(--dim)}
+  svg .edge{stroke:var(--edge);stroke-width:1.4;fill:none;marker-end:url(#arrow)}
+  svg .ms-box{fill:none;stroke:var(--line);stroke-dasharray:4 4;rx:8}
+  svg .ms-label{font:10px ui-monospace,monospace;fill:var(--dim);text-transform:uppercase;letter-spacing:1px}
+  .node-working rect{animation:nodepulse 1.6s infinite}
+  @keyframes nodepulse{0%,100%{opacity:1}50%{opacity:.6}}
+  /* Prompt / approval panel */
+  #prompt-panel{display:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);
+    align-items:center;justify-content:center;padding:24px}
+  #prompt-panel.show{display:flex}
+  .prompt-card{background:var(--panel);border:1px solid var(--root-line);border-radius:14px;
+    max-width:min(1100px,94vw);width:94vw;max-height:90vh;overflow:auto;padding:22px 26px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .prompt-card h2{margin:0 0 4px;font-size:16px}
+  .prompt-card .q{font-size:14px;margin:8px 0 14px;color:var(--ink);line-height:1.55}
+  .prompt-card pre{background:var(--inset);border:1px solid var(--inset-line);border-radius:8px;
+    padding:14px 16px;overflow:auto;font-size:12.5px;color:var(--inset-ink);max-height:62vh;
+    line-height:1.5;white-space:pre;tab-size:2}
+  .prompt-opts{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  .prompt-opts button{background:var(--root-bg);border:1px solid var(--root-line);color:var(--root-ink);
+    cursor:pointer;font:inherit;font-weight:700;padding:9px 16px;border-radius:9px;transition:.2s}
+  .prompt-opts button:hover{filter:brightness(1.15)}
+  .prompt-opts button.secondary{background:var(--panel2);color:var(--ink);border-color:var(--line);font-weight:400}
+  .prompt-free{margin-top:14px;display:flex;gap:10px;flex-direction:column}
+  .prompt-free textarea{width:100%;min-height:70px;background:var(--inset);border:1px solid var(--inset-line);
+    color:var(--ink);border-radius:8px;padding:10px;font:inherit;font-size:13px;resize:vertical}
+  .prompt-meta{font-size:11px;color:var(--dim);margin-top:12px}
+  .wrap{display:grid;grid-template-columns:1fr 320px;gap:0;height:calc(100vh - 62px)}
+  .stage{display:flex;flex-direction:column;overflow:hidden}
+  .stagebody{flex:1;overflow:auto;padding:22px}
+  .statusbar{flex-shrink:0;border-top:1px solid var(--line);background:var(--panel2);
+    padding:12px 18px;display:grid;grid-template-columns:1fr;gap:8px}
+  .statusbar .top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px}
+  .bar{flex:1;min-width:160px;height:8px;background:var(--bar-track);border-radius:5px;overflow:hidden;position:relative}
+  .bar > div{height:100%;background:linear-gradient(90deg,#238636,#3fb950);border-radius:5px;transition:width .4s}
+  .bar.indet > div{position:absolute;left:0;width:34%!important;border-radius:5px;
+    background:linear-gradient(90deg,transparent,var(--st-working),transparent);
+    animation:indet 1.2s linear infinite;transition:none}
+  @keyframes indet{0%{transform:translateX(-120%)}100%{transform:translateX(360%)}}
+  #step{color:var(--st-working)}
+  .statusbar b{color:var(--ink)} .statusbar .dim{color:var(--dim)}
+  .reason{font-size:12px;color:var(--inset-ink);background:var(--inset);border:1px solid var(--inset-line);
+    border-radius:7px;padding:8px 10px;line-height:1.5}
+  .reason .lbl{color:var(--orchestrator);font-weight:700;margin-right:6px}
+  .strat{display:flex;align-items:center;gap:10px;font-size:12px;flex-wrap:wrap}
+  .strat .schip{background:var(--schip-bg);border:1px solid var(--schip-line);color:var(--schip-ink);padding:3px 11px;
+    border-radius:20px;font-weight:700;letter-spacing:.3px;white-space:nowrap}
+  .strat .how{color:var(--dim);line-height:1.45}
+  .hub{display:flex;align-items:center;gap:12px;margin:4px 0 22px}
+  .hub .core{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;
+    background:var(--core-bg);border:1px solid var(--core-line);color:var(--orchestrator);font-weight:700;
+    box-shadow:0 0 0 0 rgba(188,140,255,.5);animation:pulse 2.4s infinite}
+  .hub .meta{font-size:12px;color:var(--dim)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-left-width:3px;
+    border-radius:10px;padding:12px 14px;position:relative;transition:.2s;opacity:.92}
+  .card .head{display:flex;gap:10px;align-items:flex-start}
+  .card .avatar{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+    font-size:18px;flex-shrink:0;border:1px solid;line-height:1}
+  .card.working .avatar{animation:bob 1.4s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .card .role{font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:700}
+  .card .label{font-size:14px;font-weight:600;margin:1px 0 2px}
+  .card .file{font-size:12px;color:var(--dim);word-break:break-all}
+  .card .detail{font-size:12px;color:var(--inset-ink);margin-top:8px;min-height:16px;
+    background:var(--inset);border:1px solid var(--inset-line);border-radius:6px;padding:6px 8px;line-height:1.45}
+  .card .detail .spin{display:inline-block;animation:spin 1s linear infinite;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .card .note{font-size:11px;color:var(--dim);margin-top:6px;min-height:14px}
+  .card .more{margin-top:8px;border-top:1px dashed var(--line);padding-top:7px;font-size:11px;
+    color:var(--dim);line-height:1.5;display:none}
+  .card .more div{word-break:break-word}
+  .card .more b{color:var(--ink);font-weight:600;margin-right:5px}
+  [data-verbose="on"] .card .more{display:block}
+  .card .st{position:absolute;top:11px;right:12px;font-size:10px;text-transform:uppercase;
+    letter-spacing:.5px;padding:2px 7px;border-radius:10px;border:1px solid var(--line)}
+  .working{opacity:1;animation:glow 1.6s infinite}
+  .working .st{color:#fff;background:#3fb950;border-color:#3fb950}
+  .spawning{opacity:1}
+  .spawning .st{color:var(--root-ink);border-color:var(--root-line)}
+  .done{opacity:.62}
+  .done .st{color:#3fb950;border-color:var(--phase-line)}
+  .blocked .st{color:#fff;background:#f85149;border-color:#f85149}
+  .blocked{opacity:1;border-left-color:#f85149!important}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(188,140,255,.45)}70%{box-shadow:0 0 0 14px rgba(188,140,255,0)}100%{box-shadow:0 0 0 0 rgba(188,140,255,0)}}
+  @keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(63,185,80,.0)}50%{box-shadow:0 0 14px 1px rgba(63,185,80,.35)}}
+  aside{border-left:1px solid var(--line);padding:18px 16px;background:var(--panel2);overflow:auto}
+  aside h3{margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim)}
+  .log{display:flex;flex-direction:column;gap:7px}
+  .log .row{font-size:12px;color:var(--log-ink);border-left:2px solid var(--line);padding:2px 0 2px 9px}
+  .log .row time{color:var(--dim);font-size:10px;margin-right:6px}
+  .empty{color:var(--dim);font-size:13px;padding:40px 0;text-align:center}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  .legend span{font-size:10px;color:var(--dim);display:flex;align-items:center;gap:5px}
+  .dot{width:8px;height:8px;border-radius:50%}
+  .conn{font-size:11px;color:var(--dim)}
+  .conn.live{color:#3fb950}
+  #stall-banner{
+    display:none;
+    background:var(--stall-bg);
+    border:1px solid var(--stall-line);
+    color:var(--stall-ink);
+    padding:10px 18px;
+    font-size:13px;
+    text-align:center;
+    border-radius:7px;
+    margin:12px 22px 0;
+    line-height:1.5;
+  }
+  .stalled .card.working{
+    opacity:0.45;
+    animation:none !important;
+  }
+  .stalled .card.working .avatar{
+    animation:none !important;
+  }
+  .stalled .card.working .st{
+    background:var(--stall-bg) !important;
+    color:var(--stall-line) !important;
+    border-color:var(--stall-line) !important;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">⚙ Agentic Builder — Agent Swarm <small id="proj"></small></div>
+  <div class="phase" id="root">📁 —</div>
+  <div class="phase" id="phase">idle</div>
+  <div class="phase" id="mode">foreground</div>
+  <div class="counts">
+    <div>working <b id="c-working">0</b></div>
+    <div>done <b id="c-done">0</b></div>
+    <div>blocked <b id="c-blocked">0</b></div>
+    <div class="conn" id="conn">connecting…</div>
+    <div class="views">
+      <button class="viewbtn active" id="btn-swarm">Swarm</button>
+      <button class="viewbtn" id="btn-plan">Plan</button>
+    </div>
+    <button class="viewbtn" id="verbose" title="Toggle verbose detail">🔍 Verbose</button>
+    <button id="theme" title="Toggle dark / light">🌙</button>
+  </div>
+</header>
+<div id="stall-banner"></div>
+<div class="wrap">
+  <main class="stage">
+    <div class="stagebody" id="grid-view">
+      <div class="hub">
+        <div class="core">🧑‍✈️</div>
+        <div class="meta">orchestrator<br><span id="hubmeta" style="color:var(--phase-ink)"></span></div>
+      </div>
+      <div class="grid" id="grid"></div>
+      <div class="empty" id="empty">waiting for the orchestrator to spawn agents…</div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div id="plan-view">
+      <div class="dag-legend">
+        <span><i style="background:var(--st-ready)"></i>ready / pending</span>
+        <span><i style="background:var(--st-working)"></i>working ⏳</span>
+        <span><i style="background:var(--st-done)"></i>done ✓</span>
+        <span><i style="background:var(--st-blocked)"></i>blocked ✗</span>
+        <span>◇ = milestone gate</span>
+      </div>
+      <div class="dag-wrap"><svg id="dag" width="100%" height="600"></svg></div>
+      <div class="empty" id="plan-empty">No plan graph yet. It appears once the planner publishes the
+        DAG (Stage 2) — or is derived live from active agents during the build. If you're mid-build and
+        still see this, the dashboard files are an older copy: re-copy template/dashboard/ and restart.</div>
+    </div>
+    <div class="statusbar">
+      <div class="top">
+        <span class="dim">progress</span>
+        <div class="bar"><div id="bar" style="width:0%"></div></div>
+        <span><b id="pct">0%</b></span>
+        <span class="dim">tasks <b id="tasks">0/0</b></span>
+        <span class="dim" id="step"></span>
+        <span class="dim">elapsed <b id="elapsed">0s</b></span>
+        <span class="dim">eta <b id="eta">—</b></span>
+      </div>
+      <div class="strat">
+        <span class="dim">strategy</span>
+        <span class="schip" id="strat-name">—</span>
+        <span class="how" id="strat-how"></span>
+      </div>
+      <div class="reason"><span class="lbl">◉ orchestrator</span><span id="reason">waiting…</span></div>
+    </div>
+  </main>
+  <aside>
+    <h3>Activity log</h3>
+    <div class="log" id="log"></div>
+  </aside>
+</div>
+<div id="prompt-panel">
+  <div class="prompt-card">
+    <h2 id="prompt-title">Orchestrator needs your input</h2>
+    <div class="q" id="prompt-q"></div>
+    <div class="dag-wrap" id="prompt-dag-wrap" style="display:none;margin:6px 0 4px">
+      <svg id="prompt-dag" width="100%" height="340"></svg>
+    </div>
+    <pre id="prompt-plan" style="display:none"></pre>
+    <div class="prompt-opts" id="prompt-opts"></div>
+    <div class="prompt-free" id="prompt-free" style="display:none">
+      <textarea id="prompt-text" placeholder="Type your answer…"></textarea>
+      <div class="prompt-opts"><button id="prompt-send">Send</button></div>
+    </div>
+    <div class="prompt-meta" id="prompt-meta"></div>
+  </div>
+</div>
+<script>
+const ROLES = {interview:"--interview",prd:"--prd",planner:"--planner","doc-check":"--doc-check",
+  router:"--router",wireframe:"--wireframe",scaffold:"--scaffold",setup:"--setup",architect:"--architect",
+  tdd:"--tdd",impl:"--impl",fix:"--fix",review:"--review",orchestrator:"--orchestrator"};
+const ICONS = {interview:"🧑‍💼",prd:"🧑‍🏫",planner:"🧑‍🚀","doc-check":"🧑‍⚖️",router:"🕵️",wireframe:"🧑‍🎨",
+  scaffold:"🧑‍🏭",setup:"🧑‍🏭",architect:"🧑‍🔬",tdd:"🧑‍⚕️",impl:"🧑‍💻",fix:"🧑‍🔧",review:"🧐",orchestrator:"🧑‍✈️"};
+const $ = (id)=>document.getElementById(id);
+
+// ── theme (dark/light) toggle, persisted ──────────────────────────────────
+function applyTheme(t){
+  document.documentElement.dataset.theme = t;
+  const btn = $("theme");
+  if(btn) btn.textContent = t==="light" ? "☀️" : "🌙";
+}
+function initTheme(){
+  let t = null;
+  try{ t = localStorage.getItem("ab-theme"); }catch{}
+  if(!t) t = (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+  applyTheme(t);
+}
+function toggleTheme(){
+  const cur = document.documentElement.dataset.theme==="light" ? "light" : "dark";
+  const next = cur==="light" ? "dark" : "light";
+  applyTheme(next);
+  try{ localStorage.setItem("ab-theme", next); }catch{}
+  if(LAST) render(LAST); // recolor cards/legend against the new palette
+}
+initTheme();
+
+// ── verbose toggle (extra per-agent detail), persisted ─────────────────────
+function applyVerbose(v){
+  document.documentElement.dataset.verbose = v;
+  const b=$("verbose"); if(b){ b.textContent = v==="on" ? "🔍 Verbose ✓" : "🔍 Verbose";
+    b.classList.toggle("active", v==="on"); }
+}
+function initVerbose(){
+  let v="off"; try{ v=localStorage.getItem("ab-verbose")||"off"; }catch{}
+  applyVerbose(v);
+}
+function toggleVerbose(){
+  const next = document.documentElement.dataset.verbose==="on" ? "off" : "on";
+  applyVerbose(next); try{ localStorage.setItem("ab-verbose", next); }catch{}
+  if(LAST) render(LAST);
+}
+initVerbose();
+
+function color(role){ return getComputedStyle(document.documentElement).getPropertyValue(ROLES[role]||"--dim")||"#7d8694"; }
+
+function esc(x){return String(x==null?"":x).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));}
+
+let LAST = null;
+$("theme").addEventListener("click", toggleTheme);
+$("verbose").addEventListener("click", toggleVerbose);
+
+// Stall detection: if agents.json hasn't changed for STALL_MS and any agent
+// is still "working", flag the board as stalled.
+const STALL_MS = 120000; // 120s — tolerates a normal npm install / long op without false alarm
+let lastUpdateTime = Date.now();
+let stallTimer = null;
+
+function clearStall() {
+  lastUpdateTime = Date.now();
+  const banner = document.getElementById("stall-banner");
+  if (banner) banner.style.display = "none";
+  const grid = document.getElementById("grid");
+  if (grid) grid.classList.remove("stalled");
+}
+
+function checkStall() {
+  const age = Date.now() - lastUpdateTime;
+  if (age < STALL_MS) return;
+  // Only show stall banner if there are working agents
+  const agents = LAST && LAST.agents ? LAST.agents : [];
+  const hasWorking = agents.some(a => a.status === "working");
+  if (!hasWorking) return;
+  const banner = document.getElementById("stall-banner");
+  if (banner) {
+    banner.style.display = "block";
+    banner.textContent =
+      `⚠ No update for ${Math.round(age/1000)}s — orchestrator may have stopped. ` +
+      `Check Claude Code for errors. Resume by re-running /agentic-builder in the same folder.`;
+  }
+  // Visually dim working cards to show they're stalled, not active
+  const grid = document.getElementById("grid");
+  if (grid) grid.classList.add("stalled");
+}
+setInterval(checkStall, 5000);
+
+function fmtDur(ms){
+  if(!ms||ms<0) return "0s";
+  const s=Math.floor(ms/1000), m=Math.floor(s/60), h=Math.floor(m/60);
+  if(h) return `${h}h ${m%60}m`;
+  if(m) return `${m}m ${s%60}s`;
+  return `${s}s`;
+}
+function tickElapsed(){
+  if(!LAST||!LAST.startedAt) return;
+  $("elapsed").textContent = fmtDur(Date.now()-new Date(LAST.startedAt).getTime());
+}
+setInterval(tickElapsed,1000);
+
+function render(s){
+  clearStall();
+  LAST = s;
+  $("proj").textContent = s.project ? "· "+s.project : "";
+  $("root").textContent = "📁 " + (s.root || (s.project||"project"));
+  $("phase").textContent = s.phase || "idle";
+  const mode = s.mode==="background" ? "background" : "foreground";
+  $("mode").textContent = mode;
+  $("hubmeta").textContent = s.updated ? "updated "+new Date(s.updated).toLocaleTimeString() : "";
+  const agents = s.agents||[];
+  $("empty").style.display = agents.length ? "none":"block";
+
+  // progress / effort: prefer explicit s.progress, else derive from agents
+  const prog = s.progress || {};
+  let done=0, total=0;
+  if(typeof prog.tasksTotal==="number"){
+    done=prog.tasksDone||0; total=prog.tasksTotal||0;
+  } else {
+    total=agents.length; done=agents.filter(a=>a.status==="done").length;
+  }
+  const hasWorking = agents.some(a=>a.status==="working");
+  // pct: prefer the orchestrator's phase-weighted pct; else derive from tasks
+  let pct;
+  const hasPct = typeof prog.pct==="number";
+  if(hasPct) pct=Math.max(0,Math.min(100,Math.round(prog.pct)));
+  else pct = total? Math.round(done/total*100):0;
+  // indeterminate: explicit flag, or no numeric progress yet while something is working
+  const indet = prog.indeterminate===true || (!hasPct && total===0 && hasWorking);
+  const barC=document.querySelector(".bar");
+  if(barC){ barC.classList.toggle("indet", indet); }
+  if(!indet) $("bar").style.width = pct+"%";
+  $("pct").textContent = indet ? "…" : pct+"%";
+  $("tasks").textContent = done+"/"+total;
+  // sub-step label ("docs 2/4: FEATURES.txt")
+  const stp = prog.step;
+  $("step").textContent = (stp && (stp.n||stp.label))
+    ? "· " + (stp.label||"") + (stp.n ? " "+(stp.i||0)+"/"+stp.n : "") : "";
+  $("eta").textContent = s.eta || prog.eta || (indet ? "working…" : "—");
+
+  // orchestration strategy (agentic pattern) + how it works
+  const STRAT_ICON = {"fan-out":"⇉","fan-out / fan-in":"⇉","pipeline":"⛓","sequential":"→",
+    "competitive":"⚔","best-of-n":"⚔","speculative":"⑂","hierarchical":"🌲","single":"•","global dag":"🕸"};
+  const strat = s.strategy || {};
+  const nm = strat.name || "—";
+  const ic = STRAT_ICON[(nm||"").toLowerCase()] || "◎";
+  $("strat-name").textContent = nm==="—" ? "—" : `${ic} ${nm}`;
+  $("strat-how").textContent = strat.how || "";
+
+  $("reason").textContent = s.reasoning || "—";
+  tickElapsed();
+
+  let w=0,d=0,b=0;
+  $("grid").innerHTML = agents.map(a=>{
+    const st=(a.status||"spawning");
+    if(st==="working")w++; else if(st==="done")d++; else if(st==="blocked")b++;
+    const c=color(a.role);
+    // live "what it's doing" line — hidden in background mode
+    const detailText = a.detail || a.note || "";
+    const showDetail = mode!=="background" && detailText;
+    const spin = st==="working" ? '<span class="spin">◜</span>' : '';
+    const detail = showDetail ? `<div class="detail">${spin}${esc(detailText)}</div>` : '';
+    const icon = ICONS[a.role] || "🤖";
+    // verbose-only extra block (rendered always; CSS shows it only when verbose is on)
+    const elapsed = a.startedAt ? fmtDur(Date.now()-new Date(a.startedAt).getTime()) : "";
+    const resultStr = a.result==null ? "" : (typeof a.result==="string"?a.result:JSON.stringify(a.result));
+    const more = `<div class="more">`
+      + (a.id?`<div><b>id</b>${esc(a.id)}</div>`:"")
+      + (elapsed?`<div><b>elapsed</b>${esc(elapsed)}</div>`:"")
+      + (a.iter?`<div><b>iter</b>${esc(a.iter)}</div>`:"")
+      + (a.context?`<div><b>context</b>${esc(a.context)}</div>`:"")
+      + (resultStr?`<div><b>result</b>${esc(resultStr)}</div>`:"")
+      + `</div>`;
+    return `<div class="card ${st}" style="border-left-color:${c}">
+      <div class="st">${st}</div>
+      <div class="head">
+        <div class="avatar" style="background:${c}22;border-color:${c}66">${icon}</div>
+        <div>
+          <div class="role" style="color:${c}">${esc(a.role||"agent")}</div>
+          <div class="label">${esc(a.label||a.id||"")}</div>
+          <div class="file">${esc(a.file||"")}</div>
+        </div>
+      </div>
+      ${detail}
+      ${a.note&&showDetail?'':`<div class="note">${esc(a.note||"")}</div>`}
+      ${more}
+    </div>`;
+  }).join("");
+  $("c-working").textContent=w; $("c-done").textContent=d; $("c-blocked").textContent=b;
+
+  $("legend").innerHTML = Object.keys(ROLES).map(r=>
+    `<span><i class="dot" style="background:${color(r)}"></i>${r}</span>`).join("");
+
+  const logN = document.documentElement.dataset.verbose==="on" ? 150 : 40;
+  const log=(s.log||[]).slice(-logN).reverse();
+  $("log").innerHTML = log.length ? log.map(l=>
+    `<div class="row"><time>${l.t?new Date(l.t).toLocaleTimeString():""}</time>${l.msg||""}</div>`
+  ).join("") : `<div class="empty" style="padding:20px 0">no events yet</div>`;
+
+  renderDAG(s);
+  renderPrompt(s);
+}
+
+// ── view toggle (Swarm ↔ Plan) ─────────────────────────────────────────────
+function setView(v){
+  const plan = v==="plan";
+  $("plan-view").classList.toggle("show", plan);
+  $("grid-view").classList.toggle("hide", plan);
+  $("btn-plan").classList.toggle("active", plan);
+  $("btn-swarm").classList.toggle("active", !plan);
+  if(plan && LAST) renderDAG(LAST);
+}
+$("btn-swarm").addEventListener("click", ()=>setView("swarm"));
+$("btn-plan").addEventListener("click", ()=>setView("plan"));
+
+// ── live DAG flowchart (zero-dep SVG, layered left→right) ───────────────────
+function cssv(n){ return (getComputedStyle(document.documentElement).getPropertyValue(n)||"").trim()||"#888"; }
+function statusColor(st){
+  return st==="done"?cssv("--st-done"):st==="working"?cssv("--st-working"):
+    st==="blocked"?cssv("--st-blocked"):st==="spawning"?cssv("--st-spawning"):cssv("--st-ready");
+}
+function statusGlyph(st){ return st==="done"?"✓":st==="working"?"⏳":st==="blocked"?"✗":st==="spawning"?"○":""; }
+function isGate(id){ return /^(gate|review|commit)-/.test(id||""); }
+
+// If the orchestrator hasn't published a `dag`, derive one from the live agents so the
+// Plan tab is never empty mid-build. Edges = each task's stage chain (tdd→impl→fix→review).
+function deriveDag(s){
+  const ag=(s.agents||[]).filter(a=>a&&(a.id||a.label)); if(!ag.length) return null;
+  const STAGES=["architect","tdd","impl","fix","review"];
+  const nodes=ag.map(a=>({id:a.id||a.label, role:a.role, label:a.label||a.id,
+    milestone:a.milestone||"", status:a.status||"ready"}));
+  const keyOf=(id,role)=> String(id||"").replace(new RegExp("^"+(role||"")+"-"),"");
+  const byKey={};
+  nodes.forEach(n=>{ const k=keyOf(n.id,n.role); (byKey[k] ||= {})[n.role]=n.id; });
+  const edges=[];
+  Object.values(byKey).forEach(m=>{
+    const present=STAGES.filter(st=>m[st]);
+    for(let i=0;i+1<present.length;i++) edges.push([m[present[i]], m[present[i+1]]]);
+  });
+  return {nodes, edges, milestones:[], derived:true};
+}
+function renderDAG(s, svgId, emptyId){
+  svgId = svgId || "dag";
+  emptyId = (emptyId===undefined) ? "plan-empty" : emptyId;
+  const svg=$(svgId); if(!svg) return;
+  let dag = s.dag;
+  if(!dag || !Array.isArray(dag.nodes) || !dag.nodes.length){ dag = deriveDag(s); }
+  if(!dag || !dag.nodes || !dag.nodes.length){
+    svg.innerHTML=""; if(emptyId&&$(emptyId)) $(emptyId).style.display="block"; return false;
+  }
+  if(emptyId&&$(emptyId)) $(emptyId).style.display="none";
+
+  // overlay live status: a matching agent's status wins over the node's stored status
+  const byAgent={}; (s.agents||[]).forEach(a=>{ if(a.id) byAgent[a.id]=a.status; });
+  const nodes=dag.nodes.map(n=>({...n, status: byAgent[n.id]||n.status||"ready"}));
+  const idIndex={}; nodes.forEach((n,i)=>idIndex[n.id]=i);
+  const edges=(dag.edges||[]).filter(e=>idIndex[e[0]]!=null&&idIndex[e[1]]!=null);
+
+  // longest-path layering → columns (depth). roots (no incoming) at depth 0.
+  const indeg={}; nodes.forEach(n=>indeg[n.id]=0);
+  edges.forEach(e=>indeg[e[1]]=(indeg[e[1]]||0)+1);
+  const depth={}; const adj={}; nodes.forEach(n=>adj[n.id]=[]);
+  edges.forEach(e=>adj[e[0]].push(e[1]));
+  const q=nodes.filter(n=>indeg[n.id]===0).map(n=>n.id); q.forEach(id=>depth[id]=0);
+  const ind={...indeg};
+  while(q.length){
+    const id=q.shift();
+    adj[id].forEach(t=>{ depth[t]=Math.max(depth[t]??0, depth[id]+1); if(--ind[t]===0) q.push(t); });
+  }
+  nodes.forEach(n=>{ if(depth[n.id]==null) depth[n.id]=0; });
+
+  // group by column, lay out
+  const cols={}; nodes.forEach(n=>{ (cols[depth[n.id]] ||= []).push(n); });
+  const NW=156, NH=34, COLGAP=70, ROWGAP=16, PADX=20, PADY=24;
+  const pos={}; let maxRows=0;
+  Object.keys(cols).map(Number).sort((a,b)=>a-b).forEach(c=>{
+    cols[c].forEach((n,r)=>{ pos[n.id]={x:PADX+c*(NW+COLGAP), y:PADY+r*(NH+ROWGAP), col:c, row:r}; });
+    maxRows=Math.max(maxRows, cols[c].length);
+  });
+  const ncols=Math.max(...Object.keys(cols).map(Number))+1;
+  const W=PADX*2+ncols*NW+(ncols-1)*COLGAP, H=PADY*2+maxRows*(NH+ROWGAP);
+  svg.setAttribute("viewBox",`0 0 ${W} ${Math.max(H,200)}`);
+  svg.setAttribute("height", Math.max(H,200));
+
+  let g=`<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+    <path d="M0,0 L7,3 L0,6 Z" fill="${cssv("--edge")}"/></marker></defs>`;
+
+  // optional milestone cluster boxes (drawn behind nodes)
+  if(Array.isArray(dag.milestones)){
+    dag.milestones.forEach(m=>{
+      const mem=nodes.filter(n=>n.milestone===m.id).map(n=>pos[n.id]).filter(Boolean);
+      if(!mem.length) return;
+      const x0=Math.min(...mem.map(p=>p.x))-8, y0=Math.min(...mem.map(p=>p.y))-18;
+      const x1=Math.max(...mem.map(p=>p.x))+NW+8, y1=Math.max(...mem.map(p=>p.y))+NH+8;
+      g+=`<rect class="ms-box" x="${x0}" y="${y0}" width="${x1-x0}" height="${y1-y0}" rx="8"/>
+          <text class="ms-label" x="${x0+8}" y="${y0+13}">${esc(m.label||m.id)}</text>`;
+    });
+  }
+
+  // edges
+  edges.forEach(e=>{
+    const a=pos[e[0]], b=pos[e[1]]; if(!a||!b) return;
+    const x1=a.x+NW, y1=a.y+NH/2, x2=b.x, y2=b.y+NH/2, mx=(x1+x2)/2;
+    g+=`<path class="edge" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
+  });
+
+  // nodes
+  nodes.forEach(n=>{
+    const p=pos[n.id]; const col=statusColor(n.status); const gate=isGate(n.id);
+    const cls = n.status==="working" ? "node node-working" : "node";
+    const label = esc(n.label||n.id);
+    const glyph = statusGlyph(n.status);
+    if(gate){
+      const cx=p.x+NW/2, cy=p.y+NH/2, hw=Math.min(NW/2,70), hh=NH/2+4;
+      g+=`<g class="${cls}">
+        <polygon points="${cx},${cy-hh} ${cx+hw},${cy} ${cx},${cy+hh} ${cx-hw},${cy}"
+          fill="${cssv("--node-bg")}" stroke="${col}" stroke-width="2"/>
+        <text x="${cx}" y="${cy+3}" text-anchor="middle">${label} ${glyph}</text></g>`;
+    } else {
+      g+=`<g class="${cls}">
+        <rect x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" rx="8"
+          fill="${cssv("--node-bg")}" stroke="${col}" stroke-width="2"/>
+        <text x="${p.x+9}" y="${p.y+15}">${label}</text>
+        <text x="${p.x+9}" y="${p.y+27}" class="sub">${esc(n.role||"")} ${glyph}</text></g>`;
+    }
+  });
+  svg.innerHTML=g;
+  return true;
+}
+
+// ── prompt / approval panel (reverse channel) ──────────────────────────────
+let promptShownId=null;
+function submitAnswer(id, value){
+  fetch("/answer",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id, value})}).catch(()=>{});
+  $("prompt-panel").classList.remove("show");
+  promptShownId="__"+id; // mark answered so we don't re-open the same prompt
+}
+function renderPrompt(s){
+  const p=s.prompt;
+  // show only when a prompt exists, isn't already answered, and we haven't dismissed it
+  if(!p || !p.id || !p.question || promptShownId==="__"+p.id){
+    if(!p || !p.id) $("prompt-panel").classList.remove("show");
+    return;
+  }
+  if(p.answered){ $("prompt-panel").classList.remove("show"); return; }
+  if(promptShownId===p.id && $("prompt-panel").classList.contains("show")) return; // already up
+  promptShownId=p.id;
+  $("prompt-title").textContent = p.title || "Orchestrator needs your input";
+  $("prompt-q").textContent = p.question;
+  // live flow diagram (arrows) right inside the approval window, if a DAG exists
+  const drew = renderDAG(s, "prompt-dag", null);
+  $("prompt-dag-wrap").style.display = drew ? "block" : "none";
+  if(p.plan){ $("prompt-plan").style.display="block"; $("prompt-plan").textContent=p.plan; }
+  else $("prompt-plan").style.display="none";
+  const opts=$("prompt-opts"); opts.innerHTML="";
+  const free=$("prompt-free");
+  if(Array.isArray(p.options) && p.options.length){
+    free.style.display="none";
+    p.options.forEach((o,i)=>{
+      const b=document.createElement("button");
+      b.textContent = typeof o==="string"? o : (o.label||o.value||("Option "+(i+1)));
+      if(i>0) b.className="secondary";
+      b.onclick=()=>submitAnswer(p.id, typeof o==="string"? o : (o.value||o.label));
+      opts.appendChild(b);
+    });
+  } else {
+    // free-text fallback
+    free.style.display="flex";
+    $("prompt-send").onclick=()=>submitAnswer(p.id, $("prompt-text").value);
+  }
+  $("prompt-meta").textContent = "id: "+p.id+" · this also appears in the CLI — answer either place.";
+  $("prompt-panel").classList.add("show");
+}
+
+function connect(){
+  const es=new EventSource("/events");
+  es.onmessage=(e)=>{
+    try{
+      render(JSON.parse(e.data));
+      clearStall();
+      $("conn").textContent="● live";
+      $("conn").className="conn live";
+    }catch{}
+  };
+  es.onerror=()=>{ $("conn").textContent="reconnecting…"; $("conn").className="conn"; };
+}
+fetch("/state").then(r=>r.json()).then(render).catch(()=>{});
+connect();
+</script>
+</body>
+</html>

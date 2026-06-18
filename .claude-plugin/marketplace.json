@@ -1,0 +1,11 @@
+{
+  "name": "agentic-builder",
+  "owner": { "name": "Faisal Nauman" },
+  "plugins": [
+    {
+      "name": "agentic-builder",
+      "source": "./",
+      "description": "Autonomous in-session SDLC orchestrator (global dependency-graph scheduler, TDD, two-stage review, live dashboard). No API key."
+    }
+  ]
+}

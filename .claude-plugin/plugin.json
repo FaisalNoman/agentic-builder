@@ -1,0 +1,20 @@
+{
+  "name": "agentic-builder",
+  "version": "0.1.0",
+  "description": "Autonomous in-session SDLC orchestrator: a prompt becomes tested, working software via a parallel agent swarm on a global dependency-graph scheduler — with design-system routing, TDD, two-stage code review, and a live dark/light dashboard (plan flowchart + interactive approvals). Runs under Claude Code with no API key.",
+  "author": { "name": "Faisal Nauman" },
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "skill",
+    "orchestrator",
+    "sdlc",
+    "autonomous",
+    "agents",
+    "tdd",
+    "dependency-graph",
+    "dashboard",
+    "code-review"
+  ],
+  "hooks": "./hooks/hooks.json"
+}
