@@ -3,6 +3,9 @@ plan/
 node_modules/
 *.log
 
+# large media (exceeds GitHub 100MB limit) — kept local, not pushed
+assets/agentic-builder.mp4
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db
