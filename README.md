@@ -1,5 +1,10 @@
 # agentic-builder
 
+<img width="1280" height="640" alt="og-card" src="https://github.com/user-attachments/assets/de6b8a5f-8320-468a-9ddd-fb5287fc30a1" />
+
+
+https://github.com/user-attachments/assets/21f1a509-97ba-4af7-82f1-bc1f840367a1
+
 **Autonomous in-session SDLC orchestrator for Claude Code.** Give it a prompt; it turns it into
 tested, working software using a parallel agent swarm — no API key, no separate program. It runs
 entirely inside your Claude Code session on the subscription you're already logged into.
