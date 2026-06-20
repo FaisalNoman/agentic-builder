@@ -4,7 +4,7 @@
 
 
 
-[Watch demo]((https://github.com/FaisalNoman/agentic-builder/blob/main/agentic-builder_vid.mp4))
+[Watch demo](https://github.com/FaisalNoman/agentic-builder/blob/main/agentic-builder_vid.mp4)
 
 
 **Autonomous in-session SDLC orchestrator for Claude Code.** Give it a prompt; it turns it into
