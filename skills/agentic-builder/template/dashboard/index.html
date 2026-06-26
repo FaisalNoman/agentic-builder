@@ -507,7 +507,7 @@ function renderSwarm(s){
     return `<article class="card ${st}" style="--role:${ROLE_VAR(a.role)}">
       <span class="st">${esc(st)}</span>
       <div class="top"><div class="av">${icon(a.role)}</div>
-        <div style="min-width:0"><div class="role">${esc(a.role||"")}</div>
+        <div style="min-width:0"><div class="role">${esc(a.role||"")}${a.persona&&a.persona.name?` · ${esc(a.persona.emoji||"")} ${esc(a.persona.name)}`:""}</div>
         <div class="label">${esc(a.label||a.id||"")}</div>
         ${file?`<div class="file">${esc(file)}</div>`:''}</div></div>${det}${more}
     </article>`;

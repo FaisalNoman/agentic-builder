@@ -99,6 +99,8 @@ The orchestrator rewrites this whole file on each update; the dashboard server s
   step runs off-board.
 - `status` ∈ `spawning | working | done | blocked` (drives the card state/animation).
 - `label` = task/feature id; `file` = the one file that agent owns.
+- `persona` (optional) — the routed specialist `{ name, emoji, domain }` from `agents/registry.json`
+  (P6, build domains only — see `references/agent-registry.md`). Card shows name + emoji; absent → plain role.
 - `detail` = **live "what it's doing right now"** — update it as the agent progresses (foreground only).
 - `note` = short final result line.
 - Optional **verbose-only** card fields (rendered only when the user toggles 🔍 Verbose; all best-effort):
@@ -232,3 +234,8 @@ to the dashboard Replay tab via `GET /events-log`.
 Persistent across runs: `{ "version", "project", "runs":[…], "milestones":{ "<id>":{ built, decisions,
 failures, files } }, "glossary":{} }`. Loaded at Stage 0; a keyword-filtered slice is injected into the
 planner + architect agents as warm-start context. Updated at `commit-{M}`, on fix resolution, and Phase 9.
+
+## agents/registry.json  (domain-agent index — repo `agents/`, generated — see references/agent-registry.md)
+Built by `agents/build-registry.mjs` from `agents/<domain>/*.md` frontmatter:
+`{ schema, count, domains, agents:[{ name, domain, description, emoji, color, path }] }`. The Stage 3
+build router selects a specialist persona (build domains only) to inject into a general-purpose subagent.
