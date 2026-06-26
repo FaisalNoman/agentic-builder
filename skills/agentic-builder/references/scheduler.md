@@ -87,6 +87,8 @@ LOOP (until ready_queue empty AND in_flight empty):
     Partition them by node type:
       - WORK nodes (architect / tdd / impl): for each
           · apply context_slice (Improvement 1)
+          · select a specialist persona via references/agent-registry.md (build domains only; scope
+            guard) → inject it; no match → plain general-purpose
           · check cache (Improvement 2) → HIT: mark done now, add to done_set, unlock dependents, skip
           · MISS: add to dispatch_batch
       - GATE nodes (gate-/review-/commit-): these are run by YOU (orchestrator), not subagents —

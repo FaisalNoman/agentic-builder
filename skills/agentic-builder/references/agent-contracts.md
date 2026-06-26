@@ -117,4 +117,5 @@ inherits the session model):
 | impl (worker) | haiku | bounded, spec'd, test-guided edits — the bulk of agents; cheapest tier ≈ 3× worker-cost drop on large runs |
 
 Set via the Agent tool `model` param at dispatch. Spend tracking + soft caps live in
-`references/budget.md`.
+`references/budget.md`. Specialist personas (P6) are injected into the prompt body, not the
+`subagent_type`, and do NOT change the JSON output contract — see `references/agent-registry.md`.

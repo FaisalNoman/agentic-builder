@@ -498,6 +498,9 @@ There is **no per-sprint FOR loop**. You run the single global dependency-graph 
   nodes: each fires when its cluster's impl tasks are done, blocking ONLY that cluster — sibling work
   flows through. This is rolling integration, not a global barrier.
 - Caches results (Improvement 2) and compresses context (Improvement 1)
+- Routes each build node to a specialist persona from `agents/registry.json` when one matches (build
+  domains only: engineering/testing/design/product — see `references/agent-registry.md`); no match →
+  plain `general-purpose`. Never routes business-domain personas (scope guard).
 - Ends when every task AND every gate node is in done_set + blocked_set → Phase 9 finishing
 
 Phase ordering (interfaces → tests → impl) and gate ordering are both encoded as dep_graph edges at
@@ -770,6 +773,7 @@ per task, each gate, each commit. On restart, read it, print progress, resume.
 - `references/events-log.md` — **load at Stage 3**. Append-only `plan/state/events.jsonl` audit/replay log; powers the dashboard Replay tab.
 - `references/unattended-mode.md` — **load at Stage 0 when the run is unattended/CI**. No-human-in-the-loop: auto-resolve gates, write `plan/state/RESULT.json`. In-session only (no Engine B).
 - `references/harness-adapters.md` — **load at Stage 0 on a non-Claude-Code harness**. Maps the skill's primitives (subagents, ask, token measure) across harnesses with explicit degradations.
+- `references/agent-registry.md` — **load at Stage 3 dispatch**. Routes build nodes to specialist personas from `agents/registry.json` (build domains only; scope guard); persona-injection into a general-purpose subagent.
 
 ---
 
