@@ -63,6 +63,11 @@ INIT:
 
 LOOP (until ready_queue empty AND in_flight empty):
 
+  BUDGET CHECK (skip if no cap set — full protocol in references/budget.md):
+    Run `node plan/dashboard/token-report.mjs <root> <startedAt>`; estimate USD via budget.prices.
+    ≥ warn_pct → log a warning. ≥ 100% → set budget.state="paused" and PAUSE: write a `budget-breach`
+    prompt + block on wait-answer.mjs; do NOT dispatch until the user resolves it.
+
   CONTROL (dashboard undo/redo — see SKILL §D):
     Read plan/state/control.json. For the first request with handled:false:
       target = milestone M + all its DAG-descendant milestones.
@@ -74,7 +79,11 @@ LOOP (until ready_queue empty AND in_flight empty):
 
   DISPATCH:
     slots = max_concurrent - len(in_flight)
-    Take up to `slots` nodes from ready_queue.
+    Take up to `slots` nodes from ready_queue, SKIPPING any node whose `writes` globs overlap an
+      in_flight node's writes OR a node already picked this batch (runtime file-ownership guard —
+      deferred nodes stay queued; glob-overlap test + full gate in references/file-ownership.md).
+      For each taken node: add its claim to plan/state/locks.json and mirror active claims into
+      agents.json `locks`.
     Partition them by node type:
       - WORK nodes (architect / tdd / impl): for each
           · apply context_slice (Improvement 1)
@@ -93,6 +102,7 @@ LOOP (until ready_queue empty AND in_flight empty):
 
   COMPLETION (per finished node):
     Move in_flight → done_set; update agents.json (status "done"); incremental-synthesis merge.
+    Release the node's claim from locks.json (refresh agents.json `locks`).
     For each node T where dep_graph[T] ⊆ done_set and T not already queued/flight/done/blocked:
       add T to ready_queue   ← speculative unlock (cross-milestone unlocks are normal here)
       log "Unlocked {T} — dep {just_completed} satisfied"
@@ -100,12 +110,21 @@ LOOP (until ready_queue empty AND in_flight empty):
 
   FAILURE:
     Work node fails after its bounded fix loop → blocked_set; write BLOCKED.md entry.
+    Release the node's claim from locks.json (refresh agents.json `locks`).
     Mark every DAG descendant of the failed node `blocked` too (they can never become ready).
     Independent nodes are unaffected — keep looping. Halt only if blocked_set blocks ALL remaining.
 
 END:
   All nodes in done_set + blocked_set → build complete → Phase 9 finishing.
 ```
+
+## Event log (audit / replay — see references/events-log.md)
+
+At each transition above, append ONE line to `plan/state/events.jsonl` (append-only, monotonic `seq`,
+best-effort — never block the build): loop start/end → `run.start`/`run.end`; DISPATCH → `agent.start`
++ `lock.claim`; COMPLETION → `agent.done` + `lock.release` + `cost.tick`; FAILURE → `agent.blocked` +
+`lock.release`; gates → `gate.run` / `commit`; prompts → `approval.ask` / `approval.answer`; budget →
+`budget.warn` / `budget.breach`; CONTROL → `control`. Schema in references/events-log.md.
 
 ## Milestone gate execution (when a gate node becomes ready)
 

@@ -39,6 +39,18 @@ built (tokens: colors, type, spacing, motion + the a11y rules). Never pass it to
 tasks or to architect/tdd. For `quality-review` on a UI milestone, include its accessibility +
 anti-pattern checklist so the reviewer can score against it.
 
+## PRIOR RUNS injection (cross-session memory, P2)
+
+When `.agentic-builder/memory.json` exists (loaded at Stage 0), inject a keyword-filtered
+`PRIOR_RUNS_CONTEXT` slice AFTER the normal context_slice — but ONLY for these agents:
+- **planner / architect** — relevant prior `decisions[]` + `failures[]` (symptom+fix) + `glossary`, as a
+  `## PRIOR RUNS` block.
+- **impl / fix** — ONLY a prior `failures[]` entry whose `file` matches the task's owned file (one max),
+  as a `## PRIOR FAILURE` block.
+- **tdd / integration / spec-review / quality-review** — none (keep lean).
+
+Never pass the whole `memory.json` to any agent. Full retrieval + injection rules in `references/memory.md`.
+
 ## Logging in dashboard
 
 In the agent's dashboard `detail` field, log what was included and excluded:
