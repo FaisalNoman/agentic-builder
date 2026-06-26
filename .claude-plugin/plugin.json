@@ -1,7 +1,7 @@
 {
   "name": "agentic-builder",
-  "version": "0.2.0",
-  "description": "Autonomous in-session SDLC orchestrator: a prompt becomes tested, working software via a parallel agent swarm on a global dependency-graph scheduler — with design-system routing, TDD, two-stage code review, and a live dark/light dashboard (locked plan flowchart, interactive approvals, per-gate test progress, milestone undo/redo). Runs under Claude Code with no API key.",
+  "version": "0.3.0",
+  "description": "Autonomous in-session SDLC orchestrator: a prompt becomes tested, working software via a parallel agent swarm on a global dependency-graph scheduler — with design-system routing, TDD, two-stage code review, runtime file-ownership locking, per-role model tiering + token/USD budget caps, cross-session memory, session replay, an unattended/CI mode, and a live dark/light dashboard (locked plan flowchart, interactive approvals, per-gate test progress, milestone undo/redo). Runs under Claude Code with no API key.",
   "author": { "name": "Faisal Nauman" },
   "license": "MIT",
   "keywords": [
@@ -14,7 +14,10 @@
     "tdd",
     "dependency-graph",
     "dashboard",
-    "code-review"
+    "code-review",
+    "memory",
+    "budget",
+    "ci"
   ],
   "hooks": "./hooks/hooks.json"
 }

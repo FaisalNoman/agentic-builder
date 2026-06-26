@@ -13,10 +13,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { computeTokens } from "./token-report.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const STATE = path.resolve(here, "..", "state", "agents.json");
 const HTML = path.join(here, "index.html");
+// Project root = two levels up from plan/dashboard. Used to locate the Claude
+// Code transcript and measure real token spend since the run's startedAt.
+const PROJECT_ROOT = path.resolve(here, "..", "..");
 const args = process.argv.slice(2);
 const PORT = Number(args.find((a) => /^\d+$/.test(a))) || 4317;
 const NO_OPEN = args.includes("--no-open");
@@ -48,12 +52,41 @@ function openBrowser(url) {
 process.on("uncaughtException", (e) => console.error("[dashboard] ignored:", e?.message));
 process.on("unhandledRejection", (e) => console.error("[dashboard] ignored:", e));
 
+// Measure real token spend from the session transcript and cache it (the scan
+// reads the project's JSONL, so throttle to a few seconds). Keyed on the run's
+// startedAt so it counts only this run.
+let _tokCache = null, _tokAt = 0;
+function measuredTokens(startedAt) {
+  const now = Date.now();
+  if (_tokCache && now - _tokAt < 3000) return _tokCache;
+  try { _tokCache = computeTokens(PROJECT_ROOT, startedAt); }
+  catch { _tokCache = null; }
+  _tokAt = now;
+  return _tokCache;
+}
+
 function readState() {
+  let raw;
   try {
-    return fs.readFileSync(STATE, "utf8");
+    raw = fs.readFileSync(STATE, "utf8");
   } catch {
     return JSON.stringify({ project: "(waiting)", phase: "idle", agents: [], log: [], updated: "" });
   }
+  // Overlay measured tokens so the KPI shows real spend even when the
+  // orchestrator never wrote per-agent estimates. Falls back silently to
+  // whatever the state file already carries if no transcript is found.
+  try {
+    const s = JSON.parse(raw);
+    const since = s.startedAt || s.started || null;
+    // Require a run-start snapshot — without it we'd sum the whole session
+    // history (other runs included) and wildly over-count. No startedAt → leave
+    // the state's own tokens (per-agent estimates) untouched.
+    if (since) {
+      const m = measuredTokens(since);
+      if (m && m.total > 0) { s.tokens = { ...m, measured: true }; return JSON.stringify(s); }
+    }
+  } catch { /* not valid JSON yet — return raw */ }
+  return raw;
 }
 
 const clients = new Set();
@@ -90,6 +123,14 @@ const server = http.createServer((req, res) => {
     if (req.url === "/state") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(readState());
+      return;
+    }
+    if (req.url === "/events-log") {
+      let body = "";
+      try { body = fs.readFileSync(path.resolve(here, "..", "state", "events.jsonl"), "utf8"); }
+      catch { body = ""; }
+      res.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache" });
+      res.end(body);
       return;
     }
     // Reverse channel: the page POSTs the user's answer/approval here. We persist it

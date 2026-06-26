@@ -3,6 +3,24 @@
 All notable changes to **agentic-builder** are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0]
+
+### Added
+- **Runtime file-ownership guard** — every task declares `writes:[globs]`; the scheduler defers any
+  ready node whose writes overlap an in-flight node's, so two agents never race-write the same file.
+  Active claims persist in `locks.json` and show as a 🔒 strip on the dashboard. (`references/file-ownership.md`)
+- **Cost control** — per-role model tiering (Haiku workers, Sonnet/Opus for planning + review) and
+  optional token/USD soft budget caps that warn at 80% and pause for approval at 100%, measured from
+  the real session transcript. (`references/budget.md`, `references/agent-contracts.md`)
+- **Cross-session memory** — `.agentic-builder/memory.json` records prior decisions, failures+fixes, and
+  file maps; a keyword-filtered slice warm-starts the planner + architect on the next run. (`references/memory.md`)
+- **Session replay / audit** — an append-only `plan/state/events.jsonl` log plus a dashboard **Replay**
+  tab with a scrubber that reconstructs any past moment of a run. (`references/events-log.md`)
+- **Unattended / CI mode** — run the same in-session engine with no human in the loop: gates auto-resolve,
+  results land in `plan/state/RESULT.json`. No API key, no standalone program. (`references/unattended-mode.md`)
+- **Multi-harness adapter contract** — isolates Claude-Code-specific primitives behind abstract adapter
+  ops with explicit degradations, for future Codex / Gemini / Cursor hosts. (`references/harness-adapters.md`)
+
 ## [0.2.0]
 
 ### Added

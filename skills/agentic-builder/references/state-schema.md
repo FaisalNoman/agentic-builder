@@ -64,6 +64,10 @@ The orchestrator rewrites this whole file on each update; the dashboard server s
 - `caps` (optional) — capability flags from Stage 0, e.g. `{ "git": true|false }`. When `git:false`
   (git not installed), the dashboard greys out the milestone **Undo** button — undo reverts commits, so it
   needs git; Redo still works. Set it at Stage 0 Step 2.
+- `locks` (optional) — active write-claims mirrored from `locks.json` (runtime file-ownership, P0):
+  `[ { "node": "impl-FEAT-001-T1", "writes": ["src/db/schema.ts"] } ]`. The dashboard renders a
+  File-Ownership strip when present; suppress when absent/empty. Source of truth is `locks.json`
+  (see `references/file-ownership.md`).
 
 - `root` = the project root folder name (shown as a chip in the header). `project` = human title.
 - `startedAt` = run start ISO — the page ticks an elapsed clock from it.
@@ -129,6 +133,7 @@ Init at scaffold:
     "blocked_set": [],
     "max_concurrent": 6
   },
+  "budget": { "max_tokens": null, "max_usd": null, "warn_pct": 0.8, "prices": {}, "state": "ok" },
   "updated_at": "{date}"
 }
 ```
@@ -178,7 +183,8 @@ The scheduler reads this at each loop top (see SKILL §D + scheduler.md CONTROL 
 milestone **and its DAG-descendant milestones**, and sets `handled:true`. Milestone-granular only.
 
 ## tasks/{FEAT}-tasks.json
-Task + subtask decomposition (incl. `module` + `milestone` fields) — see phases.md Phase 2.
+Task + subtask decomposition (incl. `module` + `milestone` + `writes:[globs]` fields) — see phases.md
+Phase 2 and `references/file-ownership.md` (the `writes` field drives the runtime conflict guard).
 
 ## Per-task signal files (one file per agent — never shared, all under plan/state/)
 - `locks/{module}.interfaces.lock`   — module architect done; that module's TDD may NOT start until this exists
@@ -207,3 +213,22 @@ Attempts:        {what fix-agent tried, n rounds}
 Suspected cause: {best guess}
 Options:         debug together | skip task | abort
 ```
+
+## locks.json  (runtime file-ownership — written by the scheduler at dispatch)
+```json
+{ "claims": [ { "node": "impl-FEAT-001-T1", "writes": ["src/db/schema.ts"], "since": "<iso>" } ] }
+```
+A claim is added when a node moves `ready_queue → in_flight`, removed when it reaches `done_set`/
+`blocked_set`. The scheduler defers any ready node whose `writes` overlap an existing claim. Mirrored
+into `agents.json` `locks` for the dashboard. Full algorithm + overlap test in `references/file-ownership.md`.
+
+## events.jsonl  (append-only replay/audit log — see references/events-log.md)
+One JSON object per line, never rewritten: `{ "seq", "t", "type", ...payload }`. Types: `run.start`,
+`agent.start`, `agent.done`, `agent.blocked`, `gate.run`, `approval.ask`, `approval.answer`, `commit`,
+`lock.claim`, `lock.release`, `cost.tick`, `budget.warn`, `budget.breach`, `control`, `run.end`. Served
+to the dashboard Replay tab via `GET /events-log`.
+
+## .agentic-builder/memory.json  (cross-session memory — PROJECT ROOT, not plan/state — see references/memory.md)
+Persistent across runs: `{ "version", "project", "runs":[…], "milestones":{ "<id>":{ built, decisions,
+failures, files } }, "glossary":{} }`. Loaded at Stage 0; a keyword-filtered slice is injected into the
+planner + architect agents as warm-start context. Updated at `commit-{M}`, on fix resolution, and Phase 9.

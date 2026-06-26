@@ -101,3 +101,20 @@ If JSON parsing fails on an agent's response:
    `"Your response was not valid JSON. Reply with raw JSON only, no other text."`
 2. If it fails again: treat as agent failure → enter fix loop (or blocked).
 3. Never attempt line-by-line parsing or regex on agent output.
+
+## Model tiering (per-role registry — cost control, P1a)
+
+Pass an explicit `model` to the Agent tool per role so cheap work runs on cheap models and only
+reasoning-heavy roles use the top tier. Default registry (override per project; a role absent here
+inherits the session model):
+
+| Role | Model tier | Why |
+|------|-----------|-----|
+| planner / architect | top (opus / sonnet) | global DAG + interface design drive everything downstream |
+| spec-review / quality-review | sonnet+ | review is the gate before commit |
+| fix | sonnet | root-cause debugging needs reasoning |
+| tdd | sonnet or haiku | test authoring from clear acceptance criteria |
+| impl (worker) | haiku | bounded, spec'd, test-guided edits — the bulk of agents; cheapest tier ≈ 3× worker-cost drop on large runs |
+
+Set via the Agent tool `model` param at dispatch. Spend tracking + soft caps live in
+`references/budget.md`.

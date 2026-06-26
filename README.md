@@ -27,6 +27,16 @@ entirely inside your Claude Code session on the subscription you're already logg
   - **interactive approvals** — the plan and questions appear on the dashboard with buttons (CLI stays
     as the fallback),
   - an accurate phase-weighted progress bar and a verbose toggle.
+- **Runtime file-ownership guard** — tasks declare the paths they write; the scheduler never runs two
+  agents that would touch the same file (dispatch-time conflict gate, shown live on the dashboard).
+- **Cost control** — per-role model tiering (cheap workers) plus optional token/USD soft caps that warn
+  at 80% and pause for approval at 100%, measured from the real session transcript.
+- **Cross-session memory** — `.agentic-builder/memory.json` carries prior decisions and fixes forward so
+  the next run starts warm.
+- **Session replay** — an append-only event log feeds a Replay tab you can scrub to reconstruct any past
+  moment of a run.
+- **Unattended / CI mode** — run the same in-session engine with no human in the loop; results land in
+  `plan/state/RESULT.json` (still no API key, no separate program).
 
 ## Install
 

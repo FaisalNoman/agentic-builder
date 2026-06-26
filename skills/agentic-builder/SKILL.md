@@ -31,8 +31,12 @@ epic = feature · story = task · subtask = implementation unit.
 3. **Persist state** to `plan/state/framework-state.json` after every phase. On re-run, read it,
    summarize progress, and resume — skip tasks in `done_set`, re-queue anything left `in_flight`
    (interrupted), and skip already-passed milestone gates.
-4. **Isolated writes.** Each subagent owns exactly ONE output file. Only you (orchestrator) read
-   multiple agents' outputs and merge. Never let two agents write the same file.
+4. **Isolated writes + runtime ownership guard.** Each subagent owns exactly ONE output file. Only you
+   (orchestrator) read multiple agents' outputs and merge. Never let two agents write the same file —
+   and enforce it at RUNTIME, not just at decomposition: every task declares `writes:[globs]`, and the
+   scheduler defers any ready node whose writes overlap an in-flight node's writes. Active claims live in
+   `plan/state/locks.json` (mirrored to `agents.json` `locks` for the dashboard). See
+   `references/file-ownership.md`.
 5. **Interfaces before impl. Tests before code.** Non-negotiable ordering — but enforced as
    **dependency edges in the global DAG** (`tdd-{T}` depends on its module's `architect` lock;
    `impl-{T}` depends on `tdd-{T}`), NOT as serialized per-sprint phases. So module A's impls can run
@@ -88,6 +92,9 @@ epic = feature · story = task · subtask = implementation unit.
        in the CLI as the fallback, take that answer, set `prompt.answered:true`.
     Never the reverse. The Approve/option buttons on the board only work because (b) is what's running.
     (foreground only; in background/SURGICAL skip the board prompt and use `AskUserQuestion` directly.)
+    **Unattended/CI runs** (`unattended:true`) skip BOTH the board prompt AND `AskUserQuestion` — every
+    gate is auto-resolved by a deterministic default (auto-approve plan/wireframe; abort on a vague spec
+    or a budget breach). See `references/unattended-mode.md`.
     Protocol + payload detail in "Dashboard interaction".
 
 ---
@@ -119,6 +126,11 @@ Set immediately in state:
 { "mode": "greenfield | feature | surgical", "mode_reason": "..." }
 ```
 
+**Also at Stage 0:** if the user asked for an unattended / headless / CI run (or "run without me"), set
+`unattended: true` and follow `references/unattended-mode.md` (no human-in-the-loop; same in-session
+engine, no Engine B). Detect the host harness and record `harness` (default `claude-code`); on a
+non-Claude-Code harness, map primitives + degrade per `references/harness-adapters.md`.
+
 **SURGICAL shortcut:** if mode is SURGICAL, skip Steps 3–4 (no plan/ dirs beyond state/),
 skip Step 6 (no foreground/background question — always foreground), launch minimal dashboard
 (3–4 cards max), jump directly to Stage S1 in `references/modes.md`.
@@ -138,6 +150,12 @@ diffs, commit steps, and milestone undo).
 Create `plan/docs/` and `plan/state/`. Create `plan/state/cache/` and initialize:
 - `plan/state/agent-cache.json` → `{ "entries": {}, "hits": 0, "misses": 0 }`
 - `plan/state/synthesis-buffer.json` → `{}`
+- `plan/state/locks.json` → `{ "claims": [] }`  (runtime file-ownership — see `references/file-ownership.md`)
+- `plan/state/events.jsonl` → empty (append-only replay/audit log — see `references/events-log.md`;
+  the `run.start` line is appended later at scheduler start, once `tasksTotal` is known)
+**Cross-session memory (see `references/memory.md`):** check for `.agentic-builder/memory.json` at the
+project root. If present, load it and build the keyword-filtered `PRIOR_RUNS_CONTEXT` slice to inject
+into the planner + architect agents (warm start from prior runs). If absent, skip silently.
 **Do NOT scaffold the standalone program** — that's Engine B.
 **SURGICAL mode:** create `plan/state/` only — no `plan/docs/`.
 
@@ -166,12 +184,17 @@ Set `strategy` in initial `agents.json` based on mode (labels in `references/mod
 Load `references/branch-lifecycle.md` § Part 1. Use a worktree if 3+ milestones expected or user
 wants main branch clean during build. Skip if single milestone or user says keep it simple.
 
-### Step 6 — Foreground vs background (GREENFIELD + FEATURE only)
+### Step 6 — Foreground vs background + budget cap (GREENFIELD + FEATURE only)
 Ask once: watch live (foreground, default) or run quietly (background)?
 Set `display_mode` in `agents.json`. Foreground → update `detail` per step.
 Background → update `status` only, skip browser auto-open (`--no-open`).
 **SURGICAL:** skip the question — default to **foreground** (the dashboard is already spawned in Step 4;
 a fix is short, the user wants to watch it). Set `display_mode: "foreground"`.
+
+**Budget cap (optional, ask once).** Offer an optional token/USD soft cap for the run (leave blank =
+unlimited). Store under `budget` in `framework-state.json`; the scheduler warns at 80% and pauses for
+approval at 100%. Full wording + config + prices in `references/budget.md`. Model tiering (cheaper
+worker models) is set per agent role — see `references/agent-contracts.md`.
 
 ### Step 7 — Every unit of work is a card — no silent steps
 Represent every activity as an entry in `agents.json`. Includes work YOU do directly.
@@ -718,6 +741,13 @@ offering "Run `git init` + commit now (enables undo going forward)" / "Re-implem
 then mark the request handled. The dashboard already greys out the **Undo** button when `caps.git=false`, so
 this is a backstop.
 
+### E. Replay tab (session audit — see references/events-log.md)
+The dashboard has a **Replay** tab alongside Swarm / Plan / Tests. It fetches the append-only
+`plan/state/events.jsonl` (served by the server at `GET /events-log`) and renders a chronological
+timeline + a scrubber slider; dragging to event N folds events 0..N into a reconstructed board
+snapshot. Read-only (no undo/redo while scrubbing). You feed it by appending one event line at each
+transition during the build (scheduler.md "Event log" step). Best-effort — never block the build on it.
+
 ## State & resume
 `plan/state/framework-state.json` is the source of truth. Update after: docs, plan, each phase
 per task, each gate, each commit. On restart, read it, print progress, resume.
@@ -734,6 +764,12 @@ per task, each gate, each commit. On restart, read it, print progress, resume.
 - `references/code-review-protocol.md` — **load for Phase 8 review dispatch**. Two-stage spec compliance → quality review. Contains impl agent self-review checklist.
 - `references/branch-lifecycle.md` — **load at Stage 0 (worktree decision) and Phase 9 (finishing)**. Git worktree setup + build completion protocol.
 - `references/modes.md` — **load at Stage 0 Step 1 (mode detection) — read before doing anything else**. Defines GREENFIELD / FEATURE / SURGICAL modes, detection logic, per-mode phase gates, and SURGICAL/FEATURE stage prompts.
+- `references/file-ownership.md` — **load at Stage 2 (planning) + Stage 3 (scheduler dispatch)**. Runtime write-conflict guard: `writes:[globs]` per task, dispatch-time overlap gate, `locks.json`.
+- `references/budget.md` — **load at Stage 0 Step 6 + every scheduler loop**. Optional token/USD soft caps: warn at 80%, pause + approval at 100%; consumes `token-report.mjs`.
+- `references/memory.md` — **load at Stage 0 Step 3 + planner/architect dispatch**. Cross-session `.agentic-builder/memory.json`: prior decisions/failures injected as warm-start context.
+- `references/events-log.md` — **load at Stage 3**. Append-only `plan/state/events.jsonl` audit/replay log; powers the dashboard Replay tab.
+- `references/unattended-mode.md` — **load at Stage 0 when the run is unattended/CI**. No-human-in-the-loop: auto-resolve gates, write `plan/state/RESULT.json`. In-session only (no Engine B).
+- `references/harness-adapters.md` — **load at Stage 0 on a non-Claude-Code harness**. Maps the skill's primitives (subagents, ask, token measure) across harnesses with explicit degradations.
 
 ---
 
